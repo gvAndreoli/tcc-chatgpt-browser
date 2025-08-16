@@ -1,0 +1,15 @@
+# venv e caches
+.venv/
+__pycache__/
+*.pyc
+
+# Playwright / perfis
+.playwright/
+
+# saídas e dados locais
+outputs/
+PDF/
+
+# configs locais e secrets
+.env
+*.log

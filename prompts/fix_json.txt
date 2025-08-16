@@ -1,0 +1,3 @@
+Your previous message did not contain a valid JSON matching the schema.
+Please re-send ONLY a valid minified JSON object with exactly these keys (no extra keys, no markdown): 
+title, main_objectives, research_questions, study_type, methodology, main_findings, conclusions, limitations.
