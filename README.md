@@ -105,7 +105,7 @@ python run.py --count 10  # para 10 PDFs
 
 O programa vai:
 - Pausar para login/captcha.
-- Assim que o usuário terminar o login/captcha, deve apertar enter no terminal para o programa executar
+- Assim que o usuário terminar o login/captcha, deve apertar enter no terminal para o programa continuar
 - Anexar cada PDF e enviar o prompt.
 - Salvar automaticamente os resultados.
 
