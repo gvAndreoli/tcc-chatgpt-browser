@@ -84,7 +84,7 @@ $env:PROMPT_VARIANT="cot"
 ---
 
 ### 3. Colocar os PDFs na pasta correta
-Copie os artigos para a pasta:
+Copie os artigos para a pasta (a pasta deve ser criada caso seja a primeira execução):
 ```
 PDF/
 ```
@@ -105,6 +105,7 @@ python run.py --count 10  # para 10 PDFs
 
 O programa vai:
 - Pausar para login/captcha.
+- Assim que o usuário terminar o login/captcha, deve apertar enter no terminal para o programa executar
 - Anexar cada PDF e enviar o prompt.
 - Salvar automaticamente os resultados.
 
