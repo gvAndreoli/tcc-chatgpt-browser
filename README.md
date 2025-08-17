@@ -94,15 +94,9 @@ PDF/
 ---
 
 ### 4. Rodar o programa
-Processar **1 PDF por vez** (padrão):
-```bash
+# Exemplo: processar 10 PDFs por vez
+$env:BATCH_SIZE = "10"
 python run.py
-```
-
-Processar **N PDFs de uma vez**:
-```bash
-python run.py --count 3   # para 3 PDFs
-python run.py --count 10  # para 10 PDFs
 ```
 
 O programa vai:
