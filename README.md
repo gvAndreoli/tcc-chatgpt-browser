@@ -94,9 +94,15 @@ PDF/
 ---
 
 ### 4. Rodar o programa
-# Exemplo: processar 10 PDFs por vez
-$env:BATCH_SIZE = "10"
+#processar 1 PDF por vez (padrão)
+```
 python run.py
+```
+#Processar N PDFs de uma vez:
+
+```
+python run.py --count 3   # para 3 PDFs
+python run.py --count 10  # para 10 PDFs
 ```
 
 O programa vai:
@@ -104,7 +110,6 @@ O programa vai:
 - Assim que o usuário terminar o login/captcha, deve apertar enter no terminal para o programa continuar
 - Anexar cada PDF e enviar o prompt.
 - Salvar automaticamente os resultados.
-
 ---
 
 ### 5. Consultar os resultados
