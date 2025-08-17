@@ -225,18 +225,38 @@ def _save_debug(file_title: str, tag: str, text: str):
 from typing import Optional
 from pydantic import ValidationError
 
+
+def _get_assistant_text_by_index(page, idx: int, timeout_ms: int = 120000) -> str:
+    """Lê o balão de ASSISTANT de índice idx (0-based) aguardando o conteúdo.
+    Evita usar .last, que pode apontar para o turno anterior."""
+    import time
+    deadline = time.time() + (timeout_ms / 1000.0)
+    while time.time() < deadline:
+        try:
+            count = page.locator(LAST_MESSAGE_SELECTOR).count()
+            if count > idx:
+                text = page.locator(LAST_MESSAGE_SELECTOR).nth(idx).inner_text(timeout=8000)
+                if text and text.strip():
+                    return text
+        except Exception:
+            pass
+        time.sleep(0.5)
+    try:
+        return page.locator(LAST_MESSAGE_SELECTOR).nth(idx).inner_text(timeout=2000)
+    except Exception:
+        return ""
+
+
 def send_prompt_and_get_json(page, file_title: str, text: str, file_path: Optional[str] = None,
                              *, parse_fix_attempts: int = 2) -> "ArticleSummary":
     ensure_ready(page)
 
-   # 1) prompt/anexo
     if file_path:
-        attach_file(page, file_path)  # já espera upload concluir
+        attach_file(page, file_path)
         prompt = PM.render_with_attachment(file_title=file_title)
     else:
         prompt = PM.render_without_attachment(file_title=file_title, article_text=text)
 
-    # DEBUG do prompt enviado (para ambas as rotas)
     if os.getenv("DEBUG_PROMPT", "0") == "1":
         try:
             dbgdir = OUTPUT_DIR / "debug"
@@ -245,71 +265,54 @@ def send_prompt_and_get_json(page, file_title: str, text: str, file_path: Option
         except Exception:
             pass
 
-    # 2) envio
     _fill_editor(page, prompt)
-    # ⬇️ aguarda liberar (sem upload + botão habilitado), checando a cada 4s
     wait_until_send_enabled(page)
 
     prev_assistant = _assistant_count(page)
     _send_keys_then_click(page)
     _ensure_outbound_or_pause(page, prev_assistant)
 
-    # 3) espera
     wait_for_response_complete(page)
+    content = _get_assistant_text_by_index(page, prev_assistant)
+    if os.getenv("DEBUG_RAW", "0") == "1":
+        _save_debug(file_title, "raw", content)
 
-    # 4) parse com retentativas e debug
-    try:
-        content = page.locator(LAST_MESSAGE_SELECTOR).last.inner_text(timeout=10000)
-    except Exception:
-        content = ""
     data = _extract_json_from_text(content)
-    if not data:
-        _save_debug(file_title, "raw1", content)
+    last_schema_error = None
+    if data:
+        try:
+            return ArticleSummary(**data)
+        except ValidationError as ve:
+            last_schema_error = ve
+            _save_debug(file_title, "raw_bad_schema", content)
+    else:
+        _save_debug(file_title, "raw_no_parse", content)
 
-    attempts = 0
-    while not data and attempts < parse_fix_attempts:
-        attempts += 1
-        ensure_ready(page)
+    for attempt in range(parse_fix_attempts):
         fix_prompt = PM.get_fix_prompt()
         _fill_editor(page, fix_prompt)
-        prev = _assistant_count(page)
-        _send_keys_then_click(page)
-        _ensure_outbound_or_pause(page, prev)
-        wait_for_response_complete(page)
-        try:
-            content = page.locator(LAST_MESSAGE_SELECTOR).last.inner_text(timeout=10000)
-        except Exception:
-            content = ""
-        data = _extract_json_from_text(content)
-        if not data:
-            _save_debug(file_title, f"raw_fix_attempt_{attempts}", content)
+        wait_until_send_enabled(page)
 
-    if not data:
-        # salve o último conteúdo e falhe
-        _save_debug(file_title, "raw_final_no_parse", content)
-        raise ValueError("Could not extract JSON from ChatGPT response (even after fixes).")
-
-    # 5) valida schema; se falhar, tenta mais uma correção
-    try:
-        return ArticleSummary(**data)
-    except ValidationError as ve:
-        ensure_ready(page)
-        fix_prompt = PM.get_fix_prompt()
-        _fill_editor(page, fix_prompt)
-        prev = _assistant_count(page)
+        prev2 = _assistant_count(page)
         _send_keys_then_click(page)
-        _ensure_outbound_or_pause(page, prev)
+        _ensure_outbound_or_pause(page, prev2)
         wait_for_response_complete(page)
-        try:
-            content2 = page.locator(LAST_MESSAGE_SELECTOR).last.inner_text(timeout=10000)
-        except Exception:
-            content2 = ""
+
+        content2 = _get_assistant_text_by_index(page, prev2)
+        if os.getenv("DEBUG_RAW", "0") == "1":
+            _save_debug(file_title, f"raw_fix_{attempt+1}", content2)
+
         data2 = _extract_json_from_text(content2)
         if not data2:
-            _save_debug(file_title, "raw_validation_fix_no_parse", content2)
-            raise ValueError(f"Validation error and no fix received: {ve}") from ve
+            _save_debug(file_title, f"raw_validation_fix_no_parse_{attempt+1}", content2)
+            continue
         try:
             return ArticleSummary(**data2)
         except ValidationError as ve2:
-            _save_debug(file_title, "raw_validation_fix_bad_schema", content2)
-            raise ValueError(f"Validation error after fix: {ve2}") from ve2
+            last_schema_error = ve2
+            _save_debug(file_title, f"raw_validation_fix_bad_schema_{attempt+1}", content2)
+
+    if last_schema_error:
+        raise ValueError(f"Validation error after fix: {last_schema_error}")
+    raise ValueError("Could not parse JSON from model response.")
+
