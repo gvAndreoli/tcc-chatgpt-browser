@@ -54,7 +54,7 @@ tcc-chatgpt-browser/
 
 ### 1. Clonar o repositório e instalar dependências
 ```bash
-git clone <repo-url>
+git clone https://github.com/gvAndreoli/tcc-chatgpt-browser
 cd tcc-chatgpt-browser
 python -m venv .venv
 .venv\Scripts\activate   # (Windows PowerShell)
