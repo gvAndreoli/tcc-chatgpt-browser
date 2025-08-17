@@ -15,6 +15,7 @@ from src.browser_utils import (
     open_chat_home,
     pause_until_ready_manual,
     ensure_ready,
+    human_idle_long,
 )
 from src.pdf_utils import extract_text_from_pdf
 from src.storage import (

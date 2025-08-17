@@ -1,9 +1,9 @@
 from __future__ import annotations
-import os, time
+import os, time, random
 from typing import Optional
 from playwright.sync_api import sync_playwright
 
-from src.config import PLAYWRIGHT_PROFILE, SLOW_MO_MS, HEADLESS, SEND_CHECK_INTERVAL_SEC, SEND_MAX_WAIT_SEC
+from src.config import PLAYWRIGHT_PROFILE, SLOW_MO_MS, HEADLESS, SEND_CHECK_INTERVAL_SEC, SEND_MAX_WAIT_SEC,JITTER_SHORT, JITTER_MED, JITTER_LONG
 from src.selectors import (
     OVERLAY_BUTTONS,
     COMPOSER_VISIBLE,
@@ -21,6 +21,38 @@ COMMON_ARGS = [
     "--disable-dev-shm-usage",
     "--disable-gpu",
 ]
+
+
+def _sleep_range(rng):
+    t = random.uniform(*rng)
+    time.sleep(t)
+
+def human_idle_short():
+    """Pequenas pausas (cliques, foco, micro ações)."""
+    _sleep_range(JITTER_SHORT)
+
+def human_idle_med():
+    """Pausa média (antes de enviar / após render)."""
+    _sleep_range(JITTER_MED)
+
+def human_idle_long():
+    """Pausa longa (entre mensagens/grupos)."""
+    _sleep_range(JITTER_LONG)
+
+def humanize_cursor(page):
+    """Movimenta o mouse de forma suave até a área do editor (sem clicar)."""
+    try:
+        loc = page.locator("textarea, [contenteditable='true']").first
+        box = loc.bounding_box()
+        if box:
+            x = box["x"] + box["width"] * 0.7
+            y = box["y"] + box["height"] * 0.4
+            page.mouse.move(x - 80, y - 20, steps=10)
+            human_idle_short()
+            page.mouse.move(x, y, steps=12)
+            human_idle_short()
+    except Exception:
+        pass
 
 def launch_browser():
     pw = sync_playwright().start()

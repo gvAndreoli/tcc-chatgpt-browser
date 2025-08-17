@@ -10,6 +10,7 @@ from src.browser_utils import (
     ensure_ready, looks_like_human_check, attach_file,
     dismiss_overlays, find_visible_editor, pause_until_ready_manual,
     wait_until_send_enabled,
+    human_idle_short, human_idle_med, human_idle_long, humanize_cursor,
 )
 
 PM = PromptManager()
@@ -44,7 +45,7 @@ def _clear_editor(page):
     page.keyboard.press("Control+A")
     page.keyboard.press("Backspace")
 
-def _insert_big_text(page, text: str, chunk_size: int = 2800, pause: float = 0.02):
+def _insert_big_text(page, text: str, chunk_size: int = 1800, pause: float = 0.03):
     for i in range(0, len(text), chunk_size):
         chunk = text[i:i+chunk_size]
         ed = find_visible_editor(page)
@@ -55,13 +56,12 @@ def _insert_big_text(page, text: str, chunk_size: int = 2800, pause: float = 0.0
         time.sleep(pause)
 
 def _fill_editor(page, text: str):
+    """Preenche o editor digitando (sem Ctrl+V), com toques humanos leves."""
     _focus_editor(page); _clear_editor(page)
-    try:
-        page.set_clipboard(text); page.keyboard.press("Control+V")
-        try: page.keyboard.insert_text("")
-        except Exception: pass
-    except Exception:
-        _insert_big_text(page, text)
+    human_idle_short()
+    humanize_cursor(page)
+    _insert_big_text(page, text, chunk_size=1200, pause=0.04)
+    human_idle_med()
 
 # ===== envio =====
 def _assistant_count(page) -> int:
@@ -69,21 +69,34 @@ def _assistant_count(page) -> int:
     except Exception: return 0
 
 def _send_keys_then_click(page):
-    dismiss_overlays(page)
-    ed = find_visible_editor(page)
-    if ed:
-        try: ed.evaluate("(el) => el.focus()")
-        except Exception: pass
-    try:
-        page.keyboard.press("Enter"); return
-    except Exception: pass
+    """Envia a mensagem SEM usar tecla Enter – clica no primeiro botão válido de SEND_BUTTONS."""
+    last_err = None
     for sel in SEND_BUTTONS:
-        btn = page.locator(sel)
-        if btn.count() > 0 and btn.first.is_visible():
-            try: btn.first.click(timeout=1500); return
-            except Exception: continue
-    try: page.keyboard.press("Control+Enter")
-    except Exception: pass
+        try:
+            btns = page.locator(sel)
+            if btns.count() == 0:
+                continue
+            btn = btns.first
+            # garantir que está visível na viewport e interativo
+            try: btn.scroll_into_view_if_needed(timeout=1500)
+            except Exception: pass
+            if not btn.is_visible():
+                continue
+            # checa se não está disabled (ARIA ou atributo)
+            aria = (btn.get_attribute("aria-disabled") or "").lower()
+            disabled = btn.get_attribute("disabled")
+            if disabled is not None or aria in ("true", "1"):
+                continue
+            # aproxima o cursor e dá uma “micro pensada”
+            try: btn.hover(timeout=1000)
+            except Exception: pass
+            human_idle_short()
+            btn.click(timeout=3000)
+            return  # sucesso
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"Botão de envio não encontrado ou não habilitado pelos seletores SEND_BUTTONS. Último erro: {last_err}")
 
 def _ensure_outbound_or_pause(page, prev_assistant_count: int, wait_s: float = 8.0):
     start = time.time()
@@ -265,13 +278,19 @@ def send_prompt_and_get_json(page, file_title: str, text: str, file_path: Option
         except Exception:
             pass
 
+    # 1) digita o prompt inteiro no editor
     _fill_editor(page, prompt)
-    wait_until_send_enabled(page)
 
+    # 2) espera o botão habilitar + “pensadinha”
+    wait_until_send_enabled(page)
+    human_idle_med()  # 👈 apenas pausa; não envia nada
+
+    # 3) mede quantos turnos do assistant existem e envia (APENAS clique)
     prev_assistant = _assistant_count(page)
-    _send_keys_then_click(page)
+    _send_keys_then_click(page)                 # 👈 envia pelo botão
     _ensure_outbound_or_pause(page, prev_assistant)
 
+    # 4) espera terminar e lê exatamente o novo balão
     wait_for_response_complete(page)
     content = _get_assistant_text_by_index(page, prev_assistant)
     if os.getenv("DEBUG_RAW", "0") == "1":
@@ -288,6 +307,7 @@ def send_prompt_and_get_json(page, file_title: str, text: str, file_path: Option
     else:
         _save_debug(file_title, "raw_no_parse", content)
 
+    # 5) tentativa de correção (fix JSON)
     for attempt in range(parse_fix_attempts):
         fix_prompt = PM.get_fix_prompt()
         _fill_editor(page, fix_prompt)
@@ -315,4 +335,3 @@ def send_prompt_and_get_json(page, file_title: str, text: str, file_path: Option
     if last_schema_error:
         raise ValueError(f"Validation error after fix: {last_schema_error}")
     raise ValueError("Could not parse JSON from model response.")
-
