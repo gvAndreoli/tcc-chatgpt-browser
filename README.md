@@ -79,6 +79,8 @@ Você pode usar **variáveis de ambiente** ou alterar direto no código:
 No Windows PowerShell:
 ```powershell
 $env:PROMPT_VARIANT="cot"
+$env:PROMPT_VARIANT = "zeroshot"
+$env:PROMPT_VARIANT = "fewshot"
 ```
 
 ---
