@@ -2,6 +2,8 @@
 
 ## 📌 Visão Geral
 
+As planilhas criadas no decorrer do tcc com os outputs da IA, gabarito, verificação  da alucinação e testes de chi-Quadrado estão disponíveis no em "Arquivos"
+
 Este projeto automatiza a interação com o ChatGPT via navegador, permitindo processar artigos científicos em PDF de forma **semiautomática** ou **totalmente automática**.  
 O programa abre o navegador, aguarda você concluir login/captcha, envia PDFs para o ChatGPT com diferentes estratégias de prompt (Zero-Shot, Few-Shot e Chain-of-Thought), e salva as respostas no formato JSON consolidado.  
 
